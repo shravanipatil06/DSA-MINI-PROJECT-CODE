@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Battleship</title>
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #ffffff;
+            color: #b69494;
+            text-align: center;
+            padding: 20px;
+        }
+
+h1 {
+            color: #133a44;
+            letter-spacing: 2px;
+        }
+
+        .boards-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 50px;
+            margin-top: 20px;
+        }
+
+        .board-wrapper {
+            background-color: #1a2a40;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(10, 35px);
+            grid-template-rows: repeat(10, 35px);
+            border: 2px solid #61dafb;
+        }
+.cell {
+            width: 35px;
+            height: 35px;
+            border: 1px solid #1f3a5a;
+            background-color: #0d2a4a;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+        }
+
+        /* Styling for the computer's board (the one you click) */
+        #computer-board .cell:not(.hit):not(.miss):hover {
+            background-color: #3d5a80;
+            cursor: pointer;
+        }
+
+        /* Cell states */
+        .cell.ship {
+            background-color: #98c379; /* Green for your ships */
+        }
+
+        .cell.miss {
+            background-color: #565f6c; /* Gray for miss */
+        }
+        .cell.miss::after {
+            content: '●';
+            color: #9ab;
+            font-size: 12px;
+        }
+ .cell.hit {
+            background-color: #e06c75; /* Red for hit */
+        }
+        .cell.hit::after {
+            content: '🔥';
+            font-size: 20px;
+        }
+        
+        #game-info {
+            margin-top: 25px;
+            font-size: 1.3em;
+            font-weight: bold;
+            height: 30px; /* Reserve space to prevent layout shifts */
+        }
+        
+        .status-winner {
+            color: #98c379;
+        }
+
+        .status-loser {
+            color: #e06c75;
+        }
+    </style>
+</head>
+<body>
+    <h1>Battleship</h1>
+    <div id="game-info">
+        <p id="status-text">Place your ships or start the game!</p>
+    </div>
+<div class="boards-container">
+        <div class="board-wrapper">
+            <h2>Your Board</h2>
+            <div id="player-board" class="grid-container"></div>
+        </div>
+        <div class="board-wrapper">
+            <h2>Computer's Board</h2>
+            <div id="computer-board" class="grid-container"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const playerBoardEl = document.getElementById('player-board');
+            const computerBoardEl = document.getElementById('computer-board');
+            const statusTextEl = document.getElementById('status-text');
+
+            const BOARD_SIZE = 10;
+            const ships = [
+                { name: 'Carrier', size: 5 },
+                { name: 'Battleship', size: 4 },
+                { name: 'Cruiser', size: 3 },
+                { name: 'Submarine', size: 3 },
+                { name: 'Destroyer', size: 2 }
+            ];
+            const TOTAL_SHIP_CELLS = ships.reduce((sum, ship) => sum + ship.size, 0);
+
+  let playerBoard = [];
+            let computerBoard = [];
+            let isPlayerTurn = true;
+            let isGameOver = false;
+            let playerHits = 0;
+            let computerHits = 0;
+
+            function initializeGame() {
+                playerBoard = createBoardData();
+                computerBoard = createBoardData();
+
+                placeShipsRandomly(playerBoard);
+                placeShipsRandomly(computerBoard);
+
+                renderBoards();
+                statusTextEl.textContent = "Your turn. Fire at the computer's board!";
+            }
+
+            function createBoardData() {
+                return Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill({ state: 'empty', ship: null }));
+            }
+ function placeShipsRandomly(board) {
+                for (const ship of ships) {
+                    let placed = false;
+                    while (!placed) {
+                        const isHorizontal = Math.random() < 0.5;
+                        const row = Math.floor(Math.random() * BOARD_SIZE);
+                        const col = Math.floor(Math.random() * BOARD_SIZE);
+
+                        if (canPlaceShip(board, ship, row, col, isHorizontal)) {
+                            for (let i = 0; i < ship.size; i++) {
+                                if (isHorizontal) {
+                                    board[row][col + i] = { state: 'ship', ship: ship.name };
+                                } else {
+                                    board[row + i][col] = { state: 'ship', ship: ship.name };
+                                }
+                            }
+                            placed = true;
+                        }
+                    }
+                }
+            }
+ function canPlaceShip(board, ship, row, col, isHorizontal) {
+                if (isHorizontal) {
+                    if (col + ship.size > BOARD_SIZE) return false;
+                    for (let i = 0; i < ship.size; i++) {
+                        if (board[row][col + i].state !== 'empty') return false;
+                    }
+                } else {
+                    if (row + ship.size > BOARD_SIZE) return false;
+                    for (let i = 0; i < ship.size; i++) {
+                        if (board[row + i][col].state !== 'empty') return false;
+                    }
+                }
+                return true;
+            }
+
+            function renderBoards() {
+                renderBoard(playerBoardEl, playerBoard, false); // false = don't hide ships
+                renderBoard(computerBoardEl, computerBoard, true); // true = hide ships
+            }
+
+            function renderBoard(boardEl, boardData, hideShips) {
+                boardEl.innerHTML = '';
+                for (let r = 0; r < BOARD_SIZE; r++) {
+                    for (let c = 0; c < BOARD_SIZE; c++) {
+                        const cell = document.createElement('div');
+                        cell.classList.add('cell');
+                        const cellData = boardData[r][c];
+  // Add classes based on state
+                        if (cellData.state === 'ship' && !hideShips) {
+                            cell.classList.add('ship');
+                        } else if (cellData.state === 'hit') {
+                            cell.classList.add('hit');
+                        } else if (cellData.state === 'miss') {
+                            cell.classList.add('miss');
+                        }
+                        
+                        // Add data attributes for coordinates
+                        cell.dataset.row = r;
+                        cell.dataset.col = c;
+                        
+                        // Add click listener only to computer's board
+                        if (boardEl === computerBoardEl) {
+                           cell.addEventListener('click', handlePlayerTurn);
+                        }
+
+                        boardEl.appendChild(cell);
+                    }
+                }
+            }
+  function handlePlayerTurn(e) {
+                if (!isPlayerTurn || isGameOver) return;
+
+                const row = parseInt(e.target.dataset.row);
+                const col = parseInt(e.target.dataset.col);
+                const cellData = computerBoard[row][col];
+
+                if (cellData.state === 'hit' || cellData.state === 'miss') {
+                    statusTextEl.textContent = "You already fired there. Try again.";
+                    return;
+                }
+
+                if (cellData.state === 'ship') {
+                    computerBoard[row][col] = { ...cellData, state: 'hit' };
+                    statusTextEl.textContent = "It's a HIT!";
+                    playerHits++;
+                } else {
+                    computerBoard[row][col] = { ...cellData, state: 'miss' };
+                    statusTextEl.textContent = "It's a MISS.";
+                }
+
+                renderBoards();
+                checkWinCondition();
+ if (!isGameOver) {
+                    isPlayerTurn = false;
+                    setTimeout(computerTurn, 1500); // Give computer a "thinking" delay
+                }
+            }
+            
+            function computerTurn() {
+                if (isGameOver) return;
+                statusTextEl.textContent = "Computer's turn...";
+
+                let row, col;
+                do {
+                    row = Math.floor(Math.random() * BOARD_SIZE);
+                    col = Math.floor(Math.random() * BOARD_SIZE);
+                } while (playerBoard[row][col].state === 'hit' || playerBoard[row][col].state === 'miss');
+                
+                const cellData = playerBoard[row][col];
+                if (cellData.state === 'ship') {
+                    playerBoard[row][col] = { ...cellData, state: 'hit' };
+                    statusTextEl.textContent = "The computer HIT your ship!";
+                    computerHits++;
+                } else {
+                    playerBoard[row][col] = { ...cellData, state: 'miss' };
+                    statusTextEl.textContent = "The computer MISSED.";
+                }
+ renderBoards();
+                checkWinCondition();
+
+                if (!isGameOver) {
+                    isPlayerTurn = true;
+                    // Briefly show computer's result before prompting player
+                    setTimeout(() => {
+                        if (!isGameOver) statusTextEl.textContent = "Your turn.";
+                    }, 1000);
+                }
+            }
+            
+            function checkWinCondition() {
+                if (playerHits === TOTAL_SHIP_CELLS) {
+                    statusTextEl.textContent = "Congratulations! You sunk all enemy ships! YOU WIN!";
+                    statusTextEl.className = 'status-winner';
+                    isGameOver = true;
+                } else if (computerHits === TOTAL_SHIP_CELLS) {
+                    statusTextEl.textContent = "The computer sunk all your ships. GAME OVER.";
+                    statusTextEl.className = 'status-loser';
+                    isGameOver = true;
+                }
+            }
+    // Start the game!
+            initializeGame();
+        });
+    </script>
+</body>
+</html>
